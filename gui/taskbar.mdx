@@ -1,0 +1,114 @@
+---
+title: "Taskbar: quick-launch app buttons"
+sidebarTitle: "Taskbar"
+description: "The HagalazOS taskbar is a fixed 48px bar at the bottom of the screen showing icon buttons for apps registered with taskbar: true."
+---
+
+The HagalazOS taskbar is a fixed horizontal strip docked to the bottom of the browser viewport. It provides one-click access to any app whose descriptor sets `taskbar: true`, letting users open apps or restore minimized windows without needing to find the corresponding desktop icon.
+
+## Element structure
+
+The taskbar is a single `div` with both an `id` and a class:
+
+```html
+<div class="taskbar" id="taskbar"></div>
+```
+
+It is declared directly in `os.html` and remains empty until `window.onload` fires in `script.js`, at which point the boot loop appends one `<button>` per qualifying app.
+
+## CSS layout
+
+The taskbar's appearance is defined in `style.css`:
+
+```css
+.taskbar {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  height: 48px;
+  background: #1f1f1f;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.taskbar button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  margin-right: 10px;
+  cursor: pointer;
+}
+```
+
+Key characteristics:
+- `position: fixed` — the taskbar stays at the bottom of the viewport regardless of scrolling or window positions.
+- `height: 48px` — this value is deliberately mirrored in the maximized-window height: `calc(100% - 48px)`, so a maximized window never obscures the taskbar.
+- Dark `#1f1f1f` background contrasts with the desktop wallpaper above it.
+- Buttons are borderless with white text at `font-size: 20px` — sized to display a Bootstrap Icon glyph clearly.
+
+## Button creation
+
+During `window.onload`, the boot loop checks each app descriptor for `app.taskbar`. Only entries where this is truthy receive a button:
+
+```js
+if (app.taskbar) {
+  const btn = document.createElement("button");
+  btn.innerHTML = app.icon?.includes("bi-")
+    ? `<i class="bi ${app.icon}"></i>`
+    : app.icon;
+
+  btn.onclick = () =>
+    openWindow(app.id, app.htmlPath, app.title, app.fallbackUrl);
+
+  taskbar.appendChild(btn);
+}
+```
+
+The icon rendering logic mirrors the desktop icon: a Bootstrap Icons class (containing `"bi-"`) is wrapped in `<i class="bi {icon}">`, while any other string is inserted as raw text.
+
+## Click behaviour
+
+Every taskbar button calls `openWindow(id, htmlPath, title, fallbackUrl)`. Because `openWindow` checks for an existing DOM element with the given `id` before creating anything new, clicking a taskbar button has three possible outcomes:
+
+| Window state | Result |
+|---|---|
+| **Not open** | A new 800 × 600 window is created and appended to `#windows` |
+| **Open, visible** | `z-index` is incremented — the window is brought to the front |
+| **Minimized** (`display: none`) | Window is shown (`display: block`), removed from `minimizedWindows`, and brought to the front |
+
+<Note>
+  There is no visual indicator on the taskbar button showing whether its window is currently open or minimized. All three states are handled transparently by a single `openWindow` call.
+</Note>
+
+## Registering an app with taskbar support
+
+Add a descriptor to `window.Apps[]` from your app's JS file before `window.onload` fires. Set `taskbar: true` to include a button:
+
+```js
+window.Apps = window.Apps || [];
+window.Apps.push({
+  id: "calculator",
+  title: "Calculator",
+  icon: "bi-calculator",
+  htmlPath: "./apps/calculator.html",
+  taskbar: true
+});
+```
+
+The guard `window.Apps = window.Apps || []` ensures the array exists even if this script happens to load before other app scripts that initialize it.
+
+<Tip>
+  Use a specific Bootstrap Icons class (e.g. `bi-calculator`, `bi-globe`, `bi-music-note`) rather than a generic one — taskbar buttons display only the icon with no label, so a recognizable glyph is the only visual cue the user has.
+</Tip>
+
+## Interaction with maximized windows
+
+When `maximizeWindow(btn)` is called, the window expands to:
+
+```
+top: 0; left: 0; width: 100%; height: calc(100% - 48px);
+```
+
+The `48px` subtraction exactly matches the taskbar height, ensuring the maximized window's lower edge sits flush against the top of the taskbar — the same behaviour as a classic desktop OS window manager.

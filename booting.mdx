@@ -1,0 +1,121 @@
+---
+title: "How the HagalazOS bootloader works"
+sidebarTitle: "Bootloader"
+description: "The HagalazOS bootloader is a keyboard-navigable menu in index.html that chainloads GUI or Terminal mode by fetching and replacing the current document."
+---
+
+The HagalazOS bootloader is the first thing you see when you open the project. It lives entirely in `index.html` — a self-contained HTML file with inline styles and a small JavaScript boot routine. Rather than using `window.location` or an anchor tag to navigate to a new page, the bootloader fetches the target file over HTTP and writes its content directly into the current document, replacing everything in place. This technique is called chainloading.
+
+## Visual design
+
+The bootloader renders a centered 520 px wide panel on a near-black background (`#0b0c0f`) in a monospace font. A subtle scanline effect is layered over the entire viewport using a CSS `::before` pseudo-element with a `repeating-linear-gradient`:
+
+```css
+body::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(255,255,255,0.03),
+        rgba(255,255,255,0.03) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+    pointer-events: none;
+    opacity: 0.25;
+}
+```
+
+The menu box has a single `1px` border in a translucent orange (`rgba(255,128,0,0.35)`). The currently selected option receives the `.selected` class, which sets its background to solid orange (`#ff8000`) and its text to black — making the active choice immediately obvious at a glance. A footer line below the box reminds you of the controls: `↑ ↓ select • ENTER boot (chainload)`.
+
+## Boot options
+
+The bootloader exposes exactly two options, defined as an array in the inline script:
+
+| Option | Target file |
+|---|---|
+| HagalazOS (GUI) | `./os.html` |
+| HagalazOS (Terminal) | `./terminal.html` |
+
+Selection state is tracked by a plain integer `index` variable. Both options map to a DOM element and a relative URL. The `render()` function synchronises the `.selected` CSS class to whichever option matches the current `index`.
+
+## Keyboard controls
+
+The bootloader listens for `keydown` events on `document`:
+
+- **↑ ArrowUp** — decrements `index` (wraps from 0 back to the last option)
+- **↓ ArrowDown** — increments `index` (wraps from the last option back to 0)
+- **Enter** — calls `boot()`, initiating the chainload sequence
+
+`render()` is called after every keypress to keep the highlighted option in sync.
+
+## The chainloading mechanism
+
+When `boot()` runs, it reads `options[index].url`, fetches it with the Fetch API, reads the response body as text, then uses `document.open()` / `document.write()` / `document.close()` to replace the entire live document with the fetched HTML — all without a page navigation:
+
+```js
+async function boot() {
+    const target = options[index].url;
+    try {
+        const res = await fetch(target);
+        const html = await res.text();
+        document.open();
+        document.write(html);
+        document.close();
+    } catch (err) {
+        document.body.innerHTML = `<pre style="color:#ff8000;">LOAD FAILURE\n------------------\nTarget: ${target}\nError: ${err}</pre>`;
+    }
+}
+```
+
+`document.open()` clears the current document's content and write stream. `document.write(html)` pipes the fetched HTML string into the parser. `document.close()` signals end-of-stream, causing the browser to finish parsing and execute any scripts in the new document. The result is indistinguishable from having navigated to the target file directly, but the URL in the address bar does not change.
+
+<Note>
+  Because `boot()` relies on `fetch()`, the bootloader must be served over HTTP or HTTPS. Opening `index.html` via the `file://` protocol will cause `fetch()` to be blocked by browser CORS policy in most browsers, resulting in the `LOAD FAILURE` screen. Serve with a local HTTP server — for example `python3 -m http.server 8080` — to avoid this.
+</Note>
+
+## Error handling
+
+If `fetch()` throws for any reason (network error, file not found, CORS block), the `catch` block replaces `document.body.innerHTML` with a preformatted error panel in orange-on-black, showing both the target URL and the thrown error object:
+
+```
+LOAD FAILURE
+------------------
+Target: ./os.html
+Error: TypeError: Failed to fetch
+```
+
+This keeps the error visible and readable without any external dependency.
+
+## The `singlefile.html` variant
+
+`singlefile.html` is a CDN-deployable copy of the bootloader. It is structurally identical to `index.html` but carries one important difference: a `<base href>` tag that points to a pinned jsDelivr commit, so all relative asset paths resolve from CDN rather than from a local filesystem:
+
+```html
+<base href="https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@c88a28aaade5c9e7d0b0c84d284afd1589155d22/">
+```
+
+Because of this `<base href>`, the GUI option in `singlefile.html` targets `./ossingle.html` (the CDN-relative GUI variant) rather than `./os.html`. The Terminal option still targets `./terminal.html`, which also resolves from CDN via the base tag. The boot and chainload logic is otherwise identical to `index.html`.
+
+<Tip>
+  You can open `singlefile.html` directly from jsDelivr at `https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@main/singlefile.html` with no local setup at all. It will chainload `ossingle.html` for GUI mode, which similarly resolves all of its own scripts and stylesheets from a pinned CDN commit.
+</Tip>
+
+## The `updating.html` helper
+
+`updating.html` is a one-liner self-updater. When opened, it immediately fetches the latest `singlefile.html` from the `master` branch on GitHub and chainloads it, effectively replacing itself with the current HEAD version:
+
+```html
+<script>(async()=>{
+    document.open();
+    document.write(
+        await (await fetch(
+            "https://raw.githubusercontent.com/linuxfandudeguy/HagalazOS/refs/heads/master/singlefile.html"
+        )).text()
+    );
+    document.close()
+})()</script>
+```
+
+This gives you a permanent bookmark or hosted URL that always boots the most recent published build of HagalazOS without you needing to update the file yourself.

@@ -1,47 +1,85 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get started with HagalazOS in minutes"
+sidebarTitle: "Quickstart"
+description: "Clone or download HagalazOS and open index.html in any modern browser to launch the bootloader and choose between GUI and Terminal mode."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+HagalazOS has no build system, no package manager, and no server-side component. Getting it running is as simple as opening a file in a browser. This guide walks you through cloning the repository, launching the bootloader, and choosing between GUI and Terminal mode — plus a no-install CDN option if you just want to try it immediately.
 
 ## Prerequisites
 
-Before you begin, you must have:
+- Any modern browser — Chrome, Firefox, or Edge are all supported. No minimum version beyond broad ES2020 support is required.
+- Git (optional) — you can also download a ZIP from GitHub.
+- No Node.js, no npm, no build tools.
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+## Set up and launch
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository">
+    Open a terminal and clone HagalazOS from GitHub:
 
     ```bash
-    npm install your-package
+    git clone https://github.com/linuxfandudeguy/HagalazOS
+    cd HagalazOS
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Serve the files locally">
+    While `index.html` can be opened directly via `file://`, some browsers block `fetch()` requests on the `file://` protocol, which prevents the bootloader from chainloading `os.html` or `terminal.html`. The safest approach is to spin up a local HTTP server:
 
     ```bash
-    your-cli init
+    git clone https://github.com/linuxfandudeguy/HagalazOS
+    cd HagalazOS
+    python3 -m http.server 8080
+    # Then open http://localhost:8080 in your browser
     ```
+
+    Any static file server works — `npx serve`, `caddy`, or a VS Code Live Server extension are equally fine.
+
+    <Note>
+      If you open `index.html` directly via `file://`, `fetch()` calls made by the bootloader and app loader may be blocked by your browser's CORS policy. Apps will fail to load and you will see a `LOAD FAILURE` message or red error text. Serving with a local HTTP server resolves this.
+    </Note>
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
 
-    ```bash
-    your-cli start
-    ```
+  <Step title="Navigate the bootloader menu">
+    The bootloader presents two options on a dark (`#0b0c0f`) background with an orange scanline overlay:
+
+    - **HagalazOS (GUI)** — the windowed desktop environment
+    - **HagalazOS (Terminal)** — the full-screen terminal emulator
+
+    Use the **↑** and **↓** arrow keys to move between options. The currently selected option is highlighted in orange (`#ff8000`). Press **Enter** to boot.
+  </Step>
+
+  <Step title="Boot into your chosen mode">
+    After you press Enter, the bootloader fetches the target file and replaces the current document without a page navigation:
+
+    - **GUI** boots `os.html` — the windowed desktop loads with app icons, a taskbar, and draggable windows styled with 7.css.
+    - **Terminal** boots `terminal.html` — a full-screen terminal emulator with an animated Vanta.js globe background appears, ready to accept commands.
+
+    <Tip>
+      In GUI mode, press **Ctrl+X** at any time to instantly close the frontmost window — the one with the highest `z-index` — without clicking the title bar.
+    </Tip>
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Zero-setup CDN option
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+If you want to try HagalazOS without cloning anything, open the single-file CDN variant directly in your browser:
+
+```
+https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@main/singlefile.html
+```
+
+`singlefile.html` is a self-contained bootloader that resolves all assets — stylesheets, scripts, and app files — from jsDelivr using a `<base href>` pointing to a pinned commit. No local files are needed. When you boot into GUI mode from `singlefile.html`, it chainloads `ossingle.html` (the CDN-relative GUI variant) rather than `os.html`.
+
+## Network features and the Wisp endpoint
+
+The terminal's `curl` command is powered by [libcurl.js](https://github.com/ading2210/libcurl.js), which routes HTTP requests over a [Wisp](https://github.com/MercuryWorkshop/wisp-protocol) WebSocket proxy. By default `terminal.html` connects to:
+
+```
+wss://wisp.mercurywork.shop/
+```
+
+<Warning>
+  If `wss://wisp.mercurywork.shop/` is unavailable or blocked on your network, the `curl` and `ip` commands in Terminal mode will fail. The rest of the terminal — including `help`, `time`, `echo`, `neofetch`, `games`, and `luminsdk` — works without any network proxy.
+</Warning>

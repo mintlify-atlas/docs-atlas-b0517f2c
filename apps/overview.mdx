@@ -1,0 +1,40 @@
+---
+title: "Built-in apps overview for HagalazOS"
+sidebarTitle: "Overview"
+description: "HagalazOS ships seven built-in apps registered via the window.Apps array: Browser, Music, Calculator, Camera, Soundboard, Games, and Map."
+---
+
+HagalazOS includes seven built-in applications that are loaded when the GUI boots. Each app is defined in its own JavaScript file inside the `apps/` directory. When `os.html` loads, these scripts are included as `<script>` tags; each one pushes one or more entries onto the global `window.Apps[]` array. The boot system in `script.js` reads that array after `window.onload`, renders desktop icons, and wires up taskbar buttons.
+
+When a user clicks an app icon or taskbar button, `openWindow()` fetches the app's HTML file and renders it inside a sandboxed blob iframe — giving each app an isolated document context.
+
+## Bundled apps
+
+The following apps are loaded by `os.html` in this order:
+
+| # | Script file | App name |
+|---|-------------|----------|
+| 1 | `apps/browser.js` | Browser |
+| 2 | `apps/music.js` | Music |
+| 3 | `apps/calculator.js` | Calculator |
+| 4 | `apps/camera.js` | Camera |
+| 5 | `apps/soundboard.js` | Soundboard |
+| 6 | `apps/games.js` | Games |
+| 7 | `apps/map.js` | Map |
+
+<Note>
+  `apps/about.js` is present in the repository but is commented out in `os.html` and is not currently active.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Browser" icon="globe" href="/apps/browser">
+    In-OS web browsing powered by libcurl.js and a Wisp WebSocket proxy
+  </Card>
+  <Card title="Music, Calculator, Camera & More" icon="grid-2" href="/apps/built-in">
+    Reference for all remaining built-in apps
+  </Card>
+</CardGroup>
+
+<Tip>
+  Want to add your own app? See [Custom Apps](/extending/custom-apps) to learn how to register a new application using the `window.Apps` array.
+</Tip>

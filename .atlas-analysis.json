@@ -1,0 +1,83 @@
+{
+  "projectType": "frontend",
+  "projectName": "HagalazOS",
+  "projectDescription": "A browser-based desktop operating system with a GUI mode, terminal emulator, draggable windows, and a suite of built-in apps — all running entirely in HTML/CSS/JavaScript.",
+  "theme": "aspen",
+  "primaryColor": "#ff8000",
+  "lightColor": "#ffd7a0",
+  "darkColor": "#0b0c0f",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "booting"
+            ]
+          },
+          {
+            "group": "GUI Mode",
+            "pages": [
+              "gui/overview",
+              "gui/windows",
+              "gui/desktop",
+              "gui/taskbar"
+            ]
+          },
+          {
+            "group": "Terminal Mode",
+            "pages": [
+              "terminal/overview",
+              "terminal/commands"
+            ]
+          },
+          {
+            "group": "Apps",
+            "pages": [
+              "apps/overview",
+              "apps/browser",
+              "apps/built-in"
+            ]
+          },
+          {
+            "group": "Extending HagalazOS",
+            "pages": [
+              "extending/custom-apps",
+              "extending/drag-drop-apps",
+              "extending/deployment"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Bootloader UI to choose between GUI and Terminal mode",
+    "Draggable, resizable, minimizable, and maximizable windows styled with 7.css (Windows 7 aesthetic)",
+    "Grid-based desktop icon layout with automatic cell placement",
+    "Terminal emulator with curl (via libcurl.js/Wisp), neofetch, games, and Lumin SDK commands",
+    "Vanta.js animated globe background in Terminal mode",
+    "Blob-iframe app sandboxing for loading app HTML inside windows",
+    "Drag-and-drop .js file execution on the desktop",
+    "Built-in apps: Browser, Music, Calculator, Camera, Soundboard, Games, Map",
+    "Keyboard shortcut Ctrl+X to close the topmost window",
+    "Self-contained single-file builds (ossingle.html / singlefile.html) served from jsDelivr CDN"
+  ],
+  "publicApiSurface": [
+    "openWindow(id, htmlPath, title, fallbackUrl) — open or restore a window",
+    "minimizeWindow(id) — minimize a window by its DOM id",
+    "maximizeWindow(btn) — toggle maximize on the window containing the button",
+    "closeWindow(btn) — remove the window containing the button from the DOM",
+    "makeDraggable(wrapper) — attach drag behaviour to a .window-wrapper element",
+    "renderBlobIframe(container, htmlText) — render HTML string into a blob iframe",
+    "loadAppIntoWindow(win, htmlPath, fallbackUrl) — fetch and render an app into a window",
+    "findNextFreeCell() — return the next unoccupied grid cell {x, y}",
+    "window.Apps[] — global array for registering desktop applications",
+    "Apps[n].id, .title, .icon, .htmlPath, .fallbackUrl, .gridX, .gridY, .taskbar — app descriptor fields",
+    "Terminal commands: help, time, echo, curl, ip, games, neofetch, gui, luminsdk"
+  ]
+}

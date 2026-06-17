@@ -1,0 +1,221 @@
+---
+title: "Terminal command reference for HagalazOS"
+sidebarTitle: "Commands"
+description: "Complete reference for all built-in HagalazOS terminal commands: help, time, echo, curl, ip, games, neofetch, gui, and luminsdk."
+---
+
+The HagalazOS terminal recognises a fixed set of built-in commands. Each command is entered at the `user@hagalaz:~$` prompt and executed when you press **Enter**. There is no shell scripting, piping, or file-system access — each command maps directly to a JavaScript function defined in `terminal.html`.
+
+<CardGroup cols={3}>
+  <Card title="help" icon="circle-question">
+    List all available commands
+  </Card>
+  <Card title="time" icon="clock">
+    Print the current local date and time
+  </Card>
+  <Card title="echo" icon="terminal">
+    Repeat text back to the terminal
+  </Card>
+  <Card title="curl" icon="globe">
+    Fetch a URL via libcurl.js / Wisp
+  </Card>
+  <Card title="ip" icon="wifi">
+    Look up your public IP address
+  </Card>
+  <Card title="games" icon="gamepad">
+    Open the MelonSoda games library
+  </Card>
+  <Card title="neofetch" icon="microchip">
+    Print browser and platform info
+  </Card>
+  <Card title="gui" icon="display">
+    Chainload into GUI mode
+  </Card>
+  <Card title="luminsdk" icon="code">
+    Open the Lumin SDK in a new tab
+  </Card>
+</CardGroup>
+
+---
+
+## help
+
+**Syntax:** `help`
+
+Prints the list of all available commands to the terminal output. No arguments are accepted. This is always the first command to run when exploring a new HagalazOS installation.
+
+```bash
+help
+```
+
+The output lists every command name alongside a short one-line description, formatted as plain text in the default output colour.
+
+---
+
+## time
+
+**Syntax:** `time`
+
+Prints the current local date and time by evaluating `new Date().toString()`. The string format is determined entirely by the browser's locale and timezone settings — it matches whatever JavaScript's `Date` object returns in the user's environment (e.g. `Mon Jul 07 2025 14:32:10 GMT+0100 (British Summer Time)`).
+
+```bash
+time
+```
+
+---
+
+## echo
+
+**Syntax:** `echo <text>`
+
+Prints everything after the leading `echo ` (note the trailing space) back to the terminal output as-is. There is no variable substitution, escape-sequence processing, or shell expansion — the text is passed directly to the `print()` helper.
+
+```bash
+echo Hello, HagalazOS!
+```
+
+The command reads the substring starting at character index 5 of the full input (`cmd.slice(5)`), so `echo ` (with a space) is the required prefix.
+
+---
+
+## curl
+
+**Syntax:** `curl <url>`
+
+Fetches the resource at `<url>` using `libcurl.fetch()` — a WebAssembly HTTP client that routes requests through the configured Wisp WebSocket proxy (`wss://wisp.mercurywork.shop/`). The response body is read as text and up to **3 000 characters** are printed to the terminal. Any content beyond that limit is silently truncated.
+
+```bash
+curl https://example.com
+```
+
+<Note>
+  `curl` depends on the libcurl.js WebAssembly module finishing its initialisation before the command is called. The module signals readiness by emitting the `libcurl_load` DOM event, after which `libcurl.set_websocket()` configures the proxy. If you run `curl` before the Wasm binary has fully loaded the call will throw a JavaScript error. Wait a moment after the page loads before issuing network commands.
+</Note>
+
+If the request fails for any reason (network error, invalid URL, proxy unavailable), the error message is printed in red: `curl error: <message>`.
+
+---
+
+## ip
+
+**Syntax:** `ip`
+
+Fetches `https://api.ipify.org?format=json` using the standard browser `fetch` API (not libcurl) and prints your public IPv4 address in green (`#6cff6c`) in the format `IP: <address>`. This command uses the browser's native networking stack directly, so it works independently of the libcurl.js load state.
+
+```bash
+ip
+```
+
+If the request fails, `IP fetch failed` is printed in red.
+
+---
+
+## games
+
+**Syntax:** `games`
+
+Opens a new browser tab (`window.open("about:blank")`) and writes a small bootstrap page into it. That page immediately fetches the MelonSoda offline games library from:
+
+```
+https://raw.githubusercontent.com/linuxfandudeguy/melonsoda/main/offline/index.html
+```
+
+The fetched HTML is written into the new tab via `document.write()`, replacing the blank page with the full MelonSoda game loader.
+
+```bash
+games
+```
+
+<Warning>
+  Your browser may block the new tab from opening if pop-ups are not allowed for the HagalazOS origin. Allow pop-ups for the page if the tab does not appear.
+</Warning>
+
+---
+
+## neofetch
+
+**Syntax:** `neofetch`
+
+Prints a styled system-information summary to the terminal output, styled after the classic `neofetch` Unix utility. All values are read from browser Web APIs — no native system access is involved.
+
+```bash
+neofetch
+```
+
+The output contains the following fields:
+
+| Field | Source |
+|---|---|
+| OS | Hard-coded string `"HagalazOS"` |
+| Browser | `navigator.userAgent` |
+| Platform | `navigator.platform` |
+| Lang | `navigator.language` |
+| Cookies | `navigator.cookieEnabled` |
+
+The section header (`──────── neofetch ────────`) and footer (`--------------------------`) are rendered in orange (`#ff8000`).
+
+---
+
+## gui
+
+**Syntax:** `gui`
+
+Chainloads HagalazOS into its full graphical desktop (GUI) mode. The command fetches `ossingle.html` from the HagalazOS GitHub repository master branch:
+
+```
+https://raw.githubusercontent.com/linuxfandudeguy/HagalazOS/refs/heads/master/ossingle.html
+```
+
+The fetched HTML is written into the **current** document using `document.write()`, completely replacing the terminal page in-place. There is no separate tab or window — the terminal is substituted for the GUI within the same browsing context.
+
+```bash
+gui
+```
+
+<Warning>
+  Running `gui` is a one-way operation in the current session. The terminal page is destroyed and replaced. Reload the original `terminal.html` URL to return to the terminal.
+</Warning>
+
+---
+
+## luminsdk
+
+**Syntax:** `luminsdk`
+
+Opens a new browser tab (`window.open("about:blank")`) and writes a self-contained page into it that initialises the **Lumin SDK** in dark theme. The tab loads `lumin.min.js` from its CDN and calls:
+
+```js
+Lumin.init({
+  container: '#games',
+  theme: 'dark'
+});
+```
+
+The `#games` div inside the new tab is the mount point for the SDK UI.
+
+```bash
+luminsdk
+```
+
+<Tip>
+  The `lumin.min.js` script is also loaded on the terminal page itself (though not initialised there), so it will typically already be cached by the browser when `luminsdk` opens the new tab.
+</Tip>
+
+---
+
+## Error handling
+
+When you type a command that is not in the built-in list, the terminal prints the following message in red (`#ff5555`):
+
+```
+command not found: <cmd>
+```
+
+where `<cmd>` is whatever you typed. Empty input (pressing Enter with nothing in the field) is silently ignored — no error is printed and the prompt is not echoed.
+
+```bash
+fakecommand
+# → command not found: fakecommand
+```
+
+There is currently no command history, tab-completion, or arrow-key navigation. Each `Enter` keypress is evaluated independently.

@@ -1,0 +1,143 @@
+---
+title: "Deploy HagalazOS as a static site"
+sidebarTitle: "Deployment"
+description: "HagalazOS is a set of static files that can be deployed on any static hosting platform. Single-file CDN builds require no hosting at all."
+---
+
+HagalazOS requires no server-side runtime. The entire system — boot menu, desktop, window manager, drag-and-drop loader, and all built-in apps — is implemented in static HTML, CSS, and JavaScript files. This means it can be deployed anywhere that serves static files, from a full CDN-backed hosting platform down to a single shareable URL that points to a file on jsDelivr.
+
+## Deployment options
+
+### Self-hosted static files
+
+Copy the repository to any host that can serve static files over HTTP or HTTPS. No special server configuration is needed because all asset paths in HagalazOS are relative — there is no base URL to configure.
+
+Compatible platforms include (but are not limited to):
+
+<CardGroup cols={2}>
+  <Card title="GitHub Pages" icon="bi-github">
+    Free static hosting directly from a GitHub repository. Serves `index.html` automatically from the repo root.
+  </Card>
+  <Card title="Netlify" icon="bi-cloud-upload">
+    Drag-and-drop or Git-connected deploys. The free tier is sufficient for HagalazOS.
+  </Card>
+  <Card title="Vercel" icon="bi-triangle">
+    Zero-config static deployments from a Git repository. Works with the default project settings.
+  </Card>
+  <Card title="Cloudflare Pages" icon="bi-cloud">
+    Global CDN with automatic HTTPS. Connect your repo and deploy with no build command.
+  </Card>
+  <Card title="AWS S3 + CloudFront" icon="bi-boxes">
+    Upload the files to an S3 bucket configured for static website hosting and front it with CloudFront for HTTPS.
+  </Card>
+  <Card title="nginx / Apache" icon="bi-server">
+    Copy the repo to the web root (`/var/www/html`) and serve with any standard HTTP server config.
+  </Card>
+</CardGroup>
+
+The entry point for the interactive boot menu is **`index.html`**. It presents a keyboard-navigable menu that chainloads either `os.html` (GUI desktop) or `terminal.html`. You can link directly to `os.html` to skip the boot menu.
+
+#### Deploy to GitHub Pages
+
+<Steps>
+  <Step title="Push the repository to GitHub">
+    Create a new repository on GitHub (or use an existing fork) and push all files to the `main` branch.
+
+    ```bash
+    git remote add origin https://github.com/your-username/HagalazOS.git
+    git push -u origin main
+    ```
+  </Step>
+
+  <Step title="Enable GitHub Pages">
+    In your repository, go to **Settings → Pages**. Under **Build and deployment**, set the source to **Deploy from a branch**, choose the `main` branch, and set the folder to `/ (root)`. Click **Save**.
+  </Step>
+
+  <Step title="Access your deployment">
+    GitHub Pages will build and serve the site within a minute. Your deployment will be available at:
+
+    ```
+    https://your-username.github.io/HagalazOS/
+    ```
+
+    `index.html` is served automatically when visiting the root URL.
+  </Step>
+</Steps>
+
+---
+
+### CDN single-file build
+
+Two files in the repository — `ossingle.html` and `singlefile.html` — are self-contained single-file builds. Both files open with a `<base href>` tag that points to a pinned jsDelivr CDN commit:
+
+```html
+<!-- ossingle.html -->
+<base href="https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@91b5b089410c23a79eba935dcdf94ba373b1161b/">
+
+<!-- singlefile.html -->
+<base href="https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@c88a28aaade5c9e7d0b0c84d284afd1589155d22/">
+```
+
+Because every relative path (`./script.js`, `./style.css`, `./apps/calculator.html`, etc.) resolves through the `<base href>` to a specific CDN commit, **you can host either file entirely on its own** — no sibling files are needed. This makes both files suitable for:
+
+- Sharing as a single URL.
+- Embedding in a pastebin, gist, or static page host that accepts raw HTML.
+- Pinning to an immutable CDN URL for permanent archival.
+
+You can access any commit of `ossingle.html` directly via jsDelivr using the pattern:
+
+```
+https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@<commit>/ossingle.html
+```
+
+Replace `<commit>` with any full or short Git commit hash from the repository.
+
+#### Self-updating entry point
+
+`updating.html` is a minimal one-liner that always loads the **latest** version of `singlefile.html` from the `master` branch:
+
+```html
+<script>(async()=>{document.open();document.write(await (await fetch("https://raw.githubusercontent.com/linuxfandudeguy/HagalazOS/refs/heads/master/singlefile.html")).text());document.close()})()</script>
+```
+
+When a browser opens `updating.html`, it fetches `singlefile.html` from the live `master` branch on GitHub and replaces the current document with it. This means the OS boots at the latest available version without any caching layer — useful for development, but not recommended for stable deployments where reproducibility matters.
+
+<Tip>
+  For zero-maintenance hosting, link directly to a jsDelivr CDN URL pinned to a specific commit. jsDelivr CDN responses for commit-pinned paths are **immutable and globally cached**, so the content will never change and latency is minimal regardless of where your users are located.
+
+  ```
+  https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@<commit>/ossingle.html
+  ```
+</Tip>
+
+---
+
+### Local development
+
+For iterating on app code locally, any static HTTP server will work. The simplest option is Python's built-in server:
+
+```bash
+# Python 3
+cd /path/to/HagalazOS
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080` in your browser.
+
+<Note>
+  Do **not** open `os.html` directly via the `file://` protocol (by double-clicking the file). Browser security restrictions will block `fetch()` calls made from `file://` origins, which means app HTML files and the `updating.html` self-loader will fail to load. Always use a local HTTP server when developing.
+</Note>
+
+Other local server options:
+
+```bash
+# Node.js (npx, no install required)
+npx serve .
+
+# PHP
+php -S localhost:8080
+```
+
+<Note>
+  Some browser APIs require a **secure context** — either `https://` or `localhost`. If you deploy to a non-HTTPS custom domain, the Camera app (`getUserMedia`) and certain Clipboard API methods will be unavailable. GitHub Pages, Netlify, Vercel, and Cloudflare Pages all provision HTTPS automatically. For self-hosted deployments on nginx or Apache, use Let's Encrypt to obtain a free TLS certificate.
+</Note>

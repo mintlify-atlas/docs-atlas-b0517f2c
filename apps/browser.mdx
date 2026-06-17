@@ -1,0 +1,45 @@
+---
+title: "Browser app: in-OS web browsing with libcurl.js"
+sidebarTitle: "Browser"
+description: "The HagalazOS Browser app opens in a draggable window and provides in-OS web browsing powered by libcurl.js routing requests through a Wisp WebSocket proxy."
+---
+
+The Browser is one of HagalazOS's flagship built-in applications. It runs inside a draggable, resizable window like every other app — but its key capability is network access that bypasses normal browser CORS restrictions. This is achieved through [libcurl.js](https://github.com/ading2210/libcurl.js), a WebAssembly port of libcurl that routes HTTP traffic through a Wisp WebSocket proxy rather than the browser's standard fetch stack.
+
+## How it opens
+
+Click the Browser icon on the desktop or its button in the taskbar. The `openWindow()` function in `script.js` fetches the app's HTML and renders it inside a sandboxed blob iframe:
+
+```js
+openWindow("browser", "./apps/browser.html", "Browser")
+```
+
+If the primary HTML path fails to load, an optional `fallbackUrl` can be set in the app descriptor to retrieve the app from a CDN instead.
+
+## libcurl.js and the Wisp proxy
+
+Standard browser `fetch()` enforces CORS — servers must opt-in by returning the right headers before a cross-origin request succeeds. The Browser app works around this by routing requests through a [Wisp](https://github.com/MercuryWorkshop/wisp-protocol) WebSocket server. The Wisp endpoint used by default is:
+
+```
+wss://wisp.mercurywork.shop/
+```
+
+libcurl.js establishes a persistent WebSocket connection to this endpoint, then tunnels HTTP requests through it. From the perspective of the destination server, the request comes from the Wisp server's IP — not from your browser.
+
+<Note>
+  The default Wisp endpoint (`wss://wisp.mercurywork.shop/`) is a community-run public service. Uptime is not guaranteed. For reliable deployments, consider self-hosting a Wisp server.
+</Note>
+
+## Sandboxed iframe context
+
+Like all HagalazOS apps, the Browser runs in a blob iframe. A new `Blob` URL is created from the app's HTML each time the window is opened, and the URL is revoked after 60 seconds. The app document is isolated from the host page — it cannot directly access the parent window's globals.
+
+<Tip>
+  To configure a custom Wisp endpoint for the terminal's `curl` command (which also uses libcurl.js), edit the `libcurl_load` event handler in `terminal.html`:
+
+  ```js
+  document.addEventListener("libcurl_load", () => {
+      libcurl.set_websocket("wss://your-wisp-server.example.com/");
+  });
+  ```
+</Tip>

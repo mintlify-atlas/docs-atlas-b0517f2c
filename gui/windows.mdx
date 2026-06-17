@@ -1,0 +1,158 @@
+---
+title: "Window management in HagalazOS GUI"
+sidebarTitle: "Windows"
+description: "HagalazOS windows are draggable, minimizable, maximizable, and closable. Each window renders its app in a sandboxed blob iframe with full window controls."
+---
+
+Every app in HagalazOS runs inside a self-contained window: a draggable `div` styled with the 7.css Windows 7 chrome, housing a sandboxed blob iframe. The entire lifecycle — creation, restoration, minimization, maximization, closure, and z-index stacking — is managed by a handful of functions in `script.js`.
+
+## Opening a window
+
+```js
+openWindow(id, htmlPath, title, fallbackUrl = null)
+```
+
+`openWindow` is the single entry point for launching any app. It is called by both desktop icons and taskbar buttons.
+
+<ParamField path="id" type="string" required>
+  A unique DOM `id` for the `.window-wrapper` element. Used to look up an existing window before creating a new one, and as the key in the `minimizedWindows` record.
+</ParamField>
+
+<ParamField path="htmlPath" type="string" required>
+  Relative or absolute URL of the primary HTML document to load into the window's iframe. Fetched with the Fetch API; failure triggers the fallback path.
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  Text displayed in the 7.css `.title-bar-text` element at the top of the window.
+</ParamField>
+
+<ParamField path="fallbackUrl" type="string | null">
+  Optional secondary URL tried if `htmlPath` fetch returns a non-OK response or throws. Useful for apps whose primary HTML is local but have a CDN mirror. Defaults to `null`.
+</ParamField>
+
+### Behaviour
+
+<Steps>
+  <Step title="Check for an existing window">
+    `openWindow` calls `document.getElementById(id)`. If a matching element exists:
+    - If it is hidden (`display: none`), it is shown (`display: block`) and removed from the `minimizedWindows` record.
+    - Its `z-index` is bumped via `zIndexCounter++` to bring it to the front.
+    - The function returns early — no new window is created.
+  </Step>
+  <Step title="Create the window wrapper">
+    A new `div.window-wrapper` is created with:
+    - `position: absolute`
+    - `width: 800px`, `height: 600px`
+    - `top: 50px`, `left: 50px`
+    - `z-index` set to the current `zIndexCounter` value (then incremented)
+
+    A `mousedown` listener on the wrapper increments `zIndexCounter` again each time the user clicks inside it, keeping the active window on top.
+  </Step>
+  <Step title="Inject the 7.css window chrome">
+    The wrapper's `innerHTML` is set to the standard 7.css structure:
+
+    ```html
+    <div class="window active" style="width:100%;height:100%;">
+      <div class="title-bar">
+        <div class="title-bar-text">My App</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="minimizeWindow('my-app')"></button>
+          <button aria-label="Maximize" onclick="maximizeWindow(this)"></button>
+          <button aria-label="Close"    onclick="closeWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body" style="padding:0;height:calc(100% - 32px);display:flex;">
+        <div style="margin:auto;">Loading...</div>
+      </div>
+    </div>
+    ```
+  </Step>
+  <Step title="Append and wire up">
+    The wrapper is appended to `#windows`. Then `makeDraggable(wrapper)` is called to enable title-bar dragging, and `loadAppIntoWindow(win, htmlPath, fallbackUrl)` is awaited to fetch and render the app.
+  </Step>
+</Steps>
+
+## Window controls
+
+### Minimize
+
+```js
+minimizeWindow(id)
+```
+
+Sets `display: none` on the wrapper identified by `id` and records `minimizedWindows[id] = true`. The window remains in the DOM; the next `openWindow(id, ...)` call will restore it.
+
+### Maximize / Restore
+
+```js
+maximizeWindow(btn)
+```
+
+Reads `btn.closest(".window-wrapper")` to find the target. Toggles between two states tracked by `win.dataset.max`:
+
+| `dataset.max` | Result |
+|---|---|
+| `"0"` (normal) → `"1"` | `top:0`, `left:0`, `width:100%`, `height:calc(100% - 48px)` — fills the desktop above the taskbar |
+| `"1"` (maximized) → `"0"` | Restores to `800px × 600px` at `top:50px / left:50px` |
+
+`zIndexCounter` is incremented on every maximize/restore toggle.
+
+### Close
+
+```js
+closeWindow(btn)
+```
+
+Calls `btn.closest(".window-wrapper")` to obtain the wrapper, deletes the corresponding `minimizedWindows` entry, and calls `win.remove()` to detach the element from the DOM entirely.
+
+## Drag behaviour
+
+`makeDraggable(wrapper)` wires a `mousedown` handler onto the `.title-bar` child of the wrapper. On press it records the cursor offset relative to the wrapper's bounding rect:
+
+```js
+const offsetX = e.clientX - rect.left;
+const offsetY = e.clientY - rect.top;
+```
+
+A `mousemove` listener on `document` updates `wrapper.style.left` and `wrapper.style.top` on every frame. A one-shot `mouseup` listener on `document` (using `{ once: true }`) removes the `mousemove` handler when the drag ends.
+
+## App loading pipeline
+
+```
+openWindow()
+  └─ loadAppIntoWindow(win, htmlPath, fallbackUrl)
+       ├─ fetch(htmlPath)  →  ok  →  renderBlobIframe(body, html)
+       └─ fetch(htmlPath)  →  fail →  fetch(fallbackUrl)
+                                          ├─ ok   →  renderBlobIframe(body, html)
+                                          └─ fail →  show red error message
+```
+
+### `renderBlobIframe(container, htmlText)`
+
+1. Creates a `Blob` from `htmlText` with MIME type `text/html`.
+2. Generates an object URL via `URL.createObjectURL(blob)`.
+3. Creates a borderless, 100 % × 100 % `<iframe>` and sets its `src` to the object URL.
+4. Replaces `container.innerHTML` with the iframe.
+5. On `iframe.onload`, schedules `URL.revokeObjectURL(url)` after **60 000 ms (60 seconds)**.
+
+<Warning>
+  Blob URLs are revoked 60 seconds after the iframe finishes loading. Any code inside the sandboxed app that later tries to navigate to or reload its own blob URL will fail. Apps must be entirely self-contained in their initial HTML payload and must not depend on the blob URL remaining valid after load.
+</Warning>
+
+## Z-index management
+
+`zIndexCounter` is a module-level integer starting at `1`. It increments in three situations:
+
+1. **`openWindow` — new window created** — the new wrapper receives the current value then the counter increments.
+2. **`openWindow` — existing window restored/focused** — counter increments and is applied to the existing wrapper.
+3. **`mousedown` on any wrapper** — the wrapper that received the click gets a fresh counter value, bringing it visually to the front.
+
+## Keyboard shortcut: Ctrl+X
+
+A `keydown` listener on `document` fires when `e.ctrlKey && e.key.toLowerCase() === 'x'`. It:
+
+1. Queries all `.window-wrapper` elements.
+2. Iterates them to find the one with the highest `parseInt(style.zIndex)`.
+3. Deletes that window's `minimizedWindows` entry and calls `.remove()` on it.
+
+This closes the frontmost window without requiring the mouse to reach the close button.

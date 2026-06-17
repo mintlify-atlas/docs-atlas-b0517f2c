@@ -1,0 +1,53 @@
+---
+title: "HagalazOS built-in apps: Music, Calculator, Camera, and more"
+sidebarTitle: "Built-in Apps"
+description: "Reference for all built-in HagalazOS apps: Music, Calculator, Camera, Soundboard, Games, and Map — each running in its own draggable blob-iframe window."
+---
+
+HagalazOS ships six built-in applications alongside the Browser. Each is loaded via a dedicated script file in the `apps/` directory. They follow the same `window.Apps` registration pattern — a script pushes an app descriptor object, and the boot system in `script.js` renders the desktop icon and optional taskbar button at startup. Every app runs in a sandboxed blob iframe when opened.
+
+## Music
+
+The Music app (`apps/music.js`) opens a music player window. It registers on the desktop with a musical note Bootstrap Icon and lets you play audio from within the OS environment.
+
+**To open:** Click the Music icon on the desktop or its taskbar button.
+
+## Calculator
+
+The Calculator app (`apps/calculator.js`) provides a standard calculator interface in a draggable window. It is a self-contained HTML application rendered inside a blob iframe.
+
+**To open:** Click the Calculator icon on the desktop or its taskbar button.
+
+## Camera
+
+The Camera app (`apps/camera.js`) accesses your device camera via the browser's `getUserMedia` API. Because the app runs inside a blob iframe, the browser will prompt for camera permission the first time you open it.
+
+**To open:** Click the Camera icon on the desktop.
+
+<Note>
+  `getUserMedia` requires a **secure context** — the page must be served over HTTPS or from `localhost`. If you open HagalazOS via the `file://` protocol, the Camera app will not be able to access the device camera in most browsers.
+</Note>
+
+## Soundboard
+
+The Soundboard app (`apps/soundboard.js`) displays a collection of sound effects or audio clips playable from on-screen buttons. Open it from the desktop icon.
+
+## Games
+
+The Games app (`apps/games.js`) is a game launcher that loads a collection of browser games. The same game collection is also accessible from the terminal via the `games` command, which loads the [MelonSoda](https://github.com/linuxfandudeguy/melonsoda) offline game index in a new tab.
+
+**To open:** Click the Games icon on the desktop or type `games` in the terminal.
+
+## Map
+
+The Map app (`apps/map.js`) displays a map view inside a draggable window. Open it from the desktop icon.
+
+---
+
+<Warning>
+  `apps/about.js` appears in the repository but is commented out in `os.html` with `<!--<script src="./apps/about.js"></script>-->`. It is not loaded and the About app is not currently active.
+</Warning>
+
+<Tip>
+  All built-in apps use the same `window.Apps` registration pattern. See [Custom Apps](/extending/custom-apps) if you want to add your own application alongside these defaults.
+</Tip>

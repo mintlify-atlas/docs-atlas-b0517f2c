@@ -1,0 +1,125 @@
+---
+title: "Load app plugins by drag-and-drop on the desktop"
+sidebarTitle: "Drag & Drop Apps"
+description: "HagalazOS supports dropping .js files directly onto the desktop to execute them — enabling instant app injection without editing os.html."
+---
+
+HagalazOS ships a small companion script, `dragjs.js`, that turns the desktop surface into a live plugin loader. Instead of editing `os.html` and adding a new `<script>` tag every time you want to try an app, you can write a self-contained `.js` file, drag it onto the open browser window, and have the code execute immediately — no reload, no build step.
+
+## How drag-and-drop loading works
+
+`dragjs.js` runs as an immediately-invoked function expression (IIFE). On execution it looks for the `#desktop` element and attaches two event listeners to it:
+
+| Event | Behaviour |
+|---|---|
+| `dragover` | Calls `e.preventDefault()` to signal to the browser that drops are accepted on this target. |
+| `drop` | Calls `e.preventDefault()`, then iterates over every file in `e.dataTransfer.files`. |
+
+For each dropped file the script checks whether it is a JavaScript file by testing `file.type === 'application/javascript'` **or** `file.name.endsWith('.js')`. Files that fail both checks are silently skipped and a `console.warn` is emitted with the file name. Files that pass are handed to `runJSFile()`.
+
+### Inside `runJSFile()`
+
+```js
+function runJSFile(file) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+        try {
+            eval(event.target.result);
+            console.log(`Executed ${file.name}`);
+        } catch (err) {
+            console.error(`Error running ${file.name}:`, err);
+        }
+    };
+    reader.readAsText(file);
+}
+```
+
+`FileReader.readAsText()` reads the file's contents as a UTF-8 string. Once the read completes, `reader.onload` fires and the full text of the file is passed directly to `eval()`. The execution happens synchronously inside the `onload` callback, in the same JavaScript context as the rest of `os.html`. This means the dropped script has full access to:
+
+- `window.Apps` — it can push new app descriptors.
+- `openWindow()` — it can open a window immediately, without waiting for a desktop icon click.
+- The entire DOM — it can create elements, manipulate the taskbar, read existing windows, etc.
+
+Any runtime error during `eval()` is caught and logged to the console; the rest of the page continues to function normally.
+
+<Warning>
+  Because the dropped file is executed with `eval()` in the full page context, it has the same privileges as any script already running on the page. **Only drop `.js` files from sources you trust.** A malicious script could read cookies, exfiltrate data through `fetch()`, or modify any part of the UI. Treat drag-and-drop execution like running an executable on your own machine.
+</Warning>
+
+<Note>
+  `window.onload` fires once, shortly after the page first renders. If you drop a plugin file **after** `window.onload` has already run, pushing onto `window.Apps` will update the array but the boot code that renders desktop icons won't run a second time — so no new icon will appear until you reload `os.html`. If you need the icon to appear without a reload, call `openWindow()` directly in your plugin script to open the app window immediately, bypassing the icon-creation step entirely.
+</Note>
+
+## Writing a droppable app plugin
+
+A plugin is just a `.js` file that pushes a descriptor onto `window.Apps`. Keep it self-contained — no imports, no dependencies beyond what is already on the page.
+
+```js
+// hello-world.js
+// Drop this file onto the HagalazOS desktop to install the app.
+
+window.Apps = window.Apps || [];
+window.Apps.push({
+  id: "hello-world",
+  title: "Hello World",
+  icon: "bi-hand-wave",
+  htmlPath: "https://example.com/hello.html",
+  taskbar: false
+});
+
+// Because window.onload has likely already fired, open the window directly
+// so the user sees it without needing to reload.
+openWindow("hello-world", "https://example.com/hello.html", "Hello World");
+```
+
+If you only want the icon to appear on next load and don't need an immediate window, you can omit the `openWindow()` call:
+
+```js
+// minimal-plugin.js
+window.Apps = window.Apps || [];
+window.Apps.push({
+  id: "minimal",
+  title: "Minimal App",
+  icon: "📦",
+  htmlPath: "https://example.com/app.html"
+});
+```
+
+## Steps to use drag-and-drop loading
+
+<Steps>
+  <Step title="Write a .js plugin file">
+    Create a `.js` file on your local machine that pushes an app descriptor onto `window.Apps` and, optionally, calls `openWindow()` to open it immediately.
+
+    ```js
+    // my-plugin.js
+    window.Apps = window.Apps || [];
+    window.Apps.push({
+      id: "my-plugin",
+      title: "My Plugin",
+      icon: "bi-plugin",
+      htmlPath: "https://example.com/my-app.html",
+      taskbar: true
+    });
+    openWindow("my-plugin", "https://example.com/my-app.html", "My Plugin");
+    ```
+  </Step>
+
+  <Step title="Open HagalazOS in GUI mode">
+    Launch `os.html` (or `ossingle.html`) in your browser. Make sure the desktop area is visible — the `#desktop` element must exist in the DOM for `dragjs.js` to attach its listeners.
+  </Step>
+
+  <Step title="Drag and drop the .js file onto the desktop">
+    Drag your `.js` file from your file manager or desktop and drop it anywhere over the HagalazOS desktop surface. The browser will trigger the `drop` event on `#desktop`, `dragjs.js` will validate the file extension, read it with `FileReader`, and execute it via `eval()`.
+
+    Check the browser console (`F12 → Console`) — a successful execution logs:
+
+    ```
+    Executed my-plugin.js
+    ```
+  </Step>
+
+  <Step title="Reload to persist the desktop icon">
+    If the app window opened immediately via `openWindow()`, you can use it right away. To also see the desktop icon on future loads, add the plugin's `<script>` tag to `os.html` permanently, or drop it again after each reload.
+  </Step>
+</Steps>

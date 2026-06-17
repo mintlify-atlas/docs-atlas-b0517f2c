@@ -1,0 +1,48 @@
+---
+title: "HagalazOS: A desktop OS that runs in your browser"
+sidebarTitle: "Introduction"
+description: "HagalazOS is a browser-native desktop operating system with a GUI mode, a terminal emulator, and drag-and-drop app support — entirely client-side."
+---
+
+HagalazOS is a fully client-side operating system simulator built entirely in HTML, CSS, and JavaScript. It runs in any modern browser with no server, no build step, and no runtime dependencies beyond the browser itself. The entire system — windowed desktop, terminal emulator, app registry, and bootloader — lives inside a small collection of static files you can open directly from disk or serve from any HTTP server.
+
+## Two modes
+
+HagalazOS boots into one of two environments, selected from the keyboard-navigable bootloader in `index.html`:
+
+- **GUI mode** — A windowed desktop environment styled with [7.css](https://khang-nd.github.io/7.css/), giving it the look and feel of Windows 7. Apps appear as icons on a grid-based desktop, open in resizable and draggable windows, and are listed on a taskbar.
+- **Terminal mode** — A full-screen terminal emulator rendered over a Vanta.js animated globe background. It supports a set of built-in shell commands including `curl` (via libcurl.js over a Wisp WebSocket proxy), `neofetch`, `ip`, `games`, and `luminsdk`.
+
+## Key technical design
+
+**Chainloading bootloader.** `index.html` does not navigate to a new page when you boot. Instead it calls `fetch()` on the target file (`os.html` or `terminal.html`), reads the full HTML as text, then calls `document.open()` / `document.write()` / `document.close()` to replace the live document entirely in place. This keeps the browser history clean and avoids a hard navigation.
+
+**Blob iframe sandboxing.** In GUI mode, each app's HTML is loaded with `fetch()`, converted into a `Blob` URL (`URL.createObjectURL`), and mounted inside an `<iframe>`. This sandboxes app content from the parent document while still allowing apps to be served from relative paths or external URLs.
+
+**`window.Apps[]` registry.** Each app file (e.g. `apps/browser.js`, `apps/calculator.js`) pushes a descriptor object onto `window.Apps`. On `window.onload`, `script.js` reads that array, renders a desktop icon at the configured grid position, and optionally adds a taskbar button. Apps declare their `id`, `title`, `icon` (Bootstrap Icons class), `htmlPath`, optional `fallbackUrl`, and grid coordinates.
+
+**Grid-based desktop layout.** Desktop icons are positioned on an `80 × 80` pixel grid. `script.js` tracks occupied cells in a `Set` and auto-places icons that do not declare an explicit `gridX`/`gridY`. Positions are set with absolute CSS using pixel offsets calculated from the grid coordinates.
+
+**`Ctrl+X` shortcut.** Pressing `Ctrl+X` closes whichever window currently has the highest `z-index`, letting you dismiss the frontmost window from the keyboard without reaching for the title bar close button.
+
+## Single-file deployment
+
+For zero-setup use, HagalazOS ships two self-contained variants that resolve all assets from jsDelivr CDN using a `<base href>` tag:
+
+| File | Purpose |
+|---|---|
+| `singlefile.html` | Single-file bootloader — chainloads `ossingle.html` or `terminal.html` via CDN |
+| `ossingle.html` | Single-file GUI mode — all asset paths resolved from a pinned jsDelivr commit |
+
+Both files are hosted on jsDelivr and can be opened directly in a browser with no local files at all.
+
+## Explore further
+
+<CardGroup cols={2}>
+  <Card title="GUI Overview" icon="desktop" href="/gui/overview">
+    Learn about the windowed desktop, app registry, blob iframe sandboxing, and the 7.css Windows 7 styling.
+  </Card>
+  <Card title="Terminal Overview" icon="terminal" href="/terminal/overview">
+    Explore the built-in shell commands, libcurl.js network support, Vanta.js background, and the Lumin SDK integration.
+  </Card>
+</CardGroup>

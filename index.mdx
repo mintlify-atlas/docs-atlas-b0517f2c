@@ -1,20 +1,49 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "HagalazOS: Browser-native desktop OS"
+sidebarTitle: "Home"
+description: "HagalazOS is a fully browser-based desktop operating system with a Windows 7-styled GUI, a terminal emulator, and a suite of built-in apps — no install required."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+HagalazOS is an operating system that runs entirely in your browser. Open `index.html` and you get a bootloader that chainloads into either a full windowed GUI desktop or an interactive terminal emulator — no server, no Node.js, no build step required.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Learn what HagalazOS is and how it is structured
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get HagalazOS running locally in under two minutes
+  </Card>
+  <Card title="GUI Mode" icon="display" href="/gui/overview">
+    Explore the windowed desktop environment and its features
+  </Card>
+  <Card title="Terminal Mode" icon="terminal" href="/terminal/overview">
+    Use the built-in terminal emulator and its command set
+  </Card>
+  <Card title="Built-in Apps" icon="grid-2" href="/apps/overview">
+    Browser, Music, Calculator, Camera, Soundboard, Games, and Map
+  </Card>
+  <Card title="Extend HagalazOS" icon="puzzle-piece" href="/extending/custom-apps">
+    Register your own apps and drop .js plugins onto the desktop
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## How it works
+
+<Steps>
+  <Step title="Open the bootloader">
+    Load `index.html` in any modern browser. A keyboard-navigable menu lets you choose between GUI and Terminal mode.
+  </Step>
+  <Step title="Boot into your chosen mode">
+    Press **Enter** to chainload. The selected environment is fetched and written directly into the current document — no page navigation occurs.
+  </Step>
+  <Step title="Use the desktop or terminal">
+    In GUI mode you get a draggable window manager with desktop icons and a taskbar. In Terminal mode you get a full command-line interface backed by a Vanta.js animated globe background.
+  </Step>
+  <Step title="Add your own apps">
+    Drop a `.js` app descriptor onto the desktop or edit the `window.Apps` array to register custom applications that open in sandboxed blob iframes.
+  </Step>
+</Steps>
+
+<Note>
+  HagalazOS runs entirely client-side. There is no backend, no database, and no authentication layer — everything lives in static HTML, CSS, and JavaScript files.
+</Note>

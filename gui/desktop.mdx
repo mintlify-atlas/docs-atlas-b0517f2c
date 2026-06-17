@@ -1,0 +1,149 @@
+---
+title: "Desktop icon grid and app registration"
+sidebarTitle: "Desktop"
+description: "HagalazOS uses an 80px grid to place desktop icons. Apps register via the window.Apps array with icon, path, and optional fixed grid coordinates."
+---
+
+The HagalazOS desktop is an absolutely-positioned `div#desktop` that covers the full viewport. Desktop icons are laid out on a discrete 80 px grid: each cell is exactly one icon wide and one icon tall. Apps declare themselves to the system by pushing a descriptor object onto `window.Apps[]`; the `window.onload` boot routine in `script.js` iterates that array to render each icon.
+
+## Grid system
+
+Three constants govern the layout:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `GRID_SIZE` | `80` | Width and height of each grid cell in pixels |
+| `GRID_COLS` | `10` | Maximum number of columns per row |
+| `occupiedCells` | `Set<string>` | Tracks cells already in use as `"x,y"` keys |
+
+### Automatic placement: `findNextFreeCell()`
+
+When an app descriptor does not specify `gridX`/`gridY`, `findNextFreeCell()` scans the grid in row-major order — `y` from `0` to `49`, `x` from `0` to `9` — and returns the first cell whose key is absent from `occupiedCells`. The chosen cell is immediately added to the set before returning, so the next call receives the subsequent free cell.
+
+```js
+function findNextFreeCell() {
+  for (let y = 0; y < 50; y++) {
+    for (let x = 0; x < GRID_COLS; x++) {
+      const key = `${x},${y}`;
+      if (!occupiedCells.has(key)) {
+        occupiedCells.add(key);
+        return { x, y };
+      }
+    }
+  }
+  return { x: 0, y: 0 }; // fallback if grid is full
+}
+```
+
+<Note>
+  The grid supports up to 500 cells (10 columns × 50 rows). If every cell is occupied, `findNextFreeCell()` returns `{ x: 0, y: 0 }` as a safe fallback and the new icon overlaps whatever is already in the top-left corner.
+</Note>
+
+## App descriptor
+
+Each entry in `window.Apps[]` is a plain object with the following fields:
+
+```js
+{
+  id: "my-app",               // unique DOM id for the window
+  title: "My App",            // window title bar text
+  icon: "bi-app",             // Bootstrap Icon class (bi-*) or plain text
+  htmlPath: "./apps/myapp.html", // primary app HTML to load
+  fallbackUrl: null,          // optional CDN fallback URL
+  gridX: 0,                   // optional fixed column (0-indexed)
+  gridY: 0,                   // optional fixed row (0-indexed)
+  taskbar: true               // whether to show a button in the taskbar
+}
+```
+
+<ParamField path="id" type="string" required>
+  Unique identifier. Becomes the `id` attribute of the `.window-wrapper` DOM element. Also used as the key in the `minimizedWindows` record. Must be unique across all registered apps.
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  Human-readable label shown in the window's 7.css title bar and beneath the desktop icon.
+</ParamField>
+
+<ParamField path="icon" type="string" required>
+  Determines the visual glyph on the desktop icon and taskbar button. If the value contains the substring `"bi-"`, it is treated as a Bootstrap Icons class and wrapped in `<i class="bi {icon}">`. Any other string is rendered as plain text inside a `<span>`.
+</ParamField>
+
+<ParamField path="htmlPath" type="string" required>
+  Path to the primary HTML document fetched by `loadAppIntoWindow`. Can be a relative path (e.g. `./apps/calculator.html`) or an absolute URL.
+</ParamField>
+
+<ParamField path="fallbackUrl" type="string | null">
+  Optional secondary URL tried if `htmlPath` fails. Useful for hosting the same app HTML on a CDN as a reliability fallback. Omit or set to `null` if not needed.
+</ParamField>
+
+<ParamField path="gridX" type="number">
+  Zero-indexed column at which to pin the icon. Must be used together with `gridY`. When omitted, `findNextFreeCell()` determines placement automatically. **The pinned cell is not automatically added to `occupiedCells`, so manually-placed icons should use coordinates that do not conflict with auto-placed ones.**
+</ParamField>
+
+<ParamField path="gridY" type="number">
+  Zero-indexed row at which to pin the icon. Must be used together with `gridX`.
+</ParamField>
+
+<ParamField path="taskbar" type="boolean">
+  When `true`, a button for this app is appended to the `#taskbar` element in addition to the desktop icon. Defaults to `false` (button is not created) if the property is absent.
+</ParamField>
+
+## Icon rendering
+
+The boot loop creates one `div.desktop-icon` per app entry and positions it absolutely:
+
+```js
+icon.style.left = (x * GRID_SIZE) + "px"; // x * 80
+icon.style.top  = (y * GRID_SIZE) + "px"; // y * 80
+icon.style.width  = GRID_SIZE + "px";      // 80
+icon.style.height = GRID_SIZE + "px";      // 80
+```
+
+The inner HTML depends on whether the icon value contains `"bi-"`:
+
+```js
+icon.innerHTML = app.icon?.includes("bi-")
+  ? `<i class="bi ${app.icon}"></i><span>${app.title}</span>`
+  : `<span>${app.title}</span>`;
+```
+
+A click on any desktop icon calls `openWindow(app.id, app.htmlPath, app.title, app.fallbackUrl)`.
+
+## Desktop icon CSS
+
+Desktop icon appearance is defined in `desktop.css`:
+
+- **Container** — `.desktop-icon` is `position: relative`, `width: 80px`, `display: inline-flex`, `flex-direction: column`, `align-items: center`.
+- **Icon glyph** — `i` inside `.desktop-icon` renders at `font-size: 36px` with `z-index: 1` to sit above the highlight layer.
+- **Highlight pseudo-element** — `.desktop-icon::before` places a `64 × 64 px` rounded rectangle (`border-radius: 12px`) centred behind the icon using `background: rgba(255, 255, 255, 0.1)` at `z-index: 0`. This creates the subtle glass highlight visible on hover.
+- **Label** — the `span` below the icon uses `white-space: nowrap`, `overflow: hidden`, and `text-overflow: ellipsis` to truncate long app names to the 80 px cell width.
+
+<Tip>
+  The `::before` highlight is always visible, not just on hover. To add a hover glow effect, override `.desktop-icon:hover::before` in a custom stylesheet loaded after `desktop.css`.
+</Tip>
+
+## Wallpaper
+
+The desktop wallpaper is applied as a full-viewport pseudo-element in `style.css`:
+
+```css
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    url('https://cdn.jsdelivr.net/gh/linuxfandudeguy/hagallcdn@main/G4-FRJjbQAIKTr3.jpg')
+    center top / cover no-repeat;
+  z-index: -1;
+}
+```
+
+The image is served from the `hagallcdn` GitHub CDN repository and fills the entire viewport at `cover` scale. Because it is on `body::before` with `z-index: -1`, both `#desktop` and `#windows` naturally appear in front of it without any additional stacking context adjustments.
+
+## Runtime app sideloading via drag-and-drop {#drag-drop}
+
+`dragjs.js` adds `dragover` and `drop` listeners to `#desktop`. When a `.js` file is dropped onto the desktop, `dragjs.js` reads it with `FileReader` and passes the text content to `eval()`. This allows app registration scripts — files that push onto `window.Apps[]` — to be loaded at runtime without modifying `os.html`.
+
+<Warning>
+  Dropped scripts are executed with `eval()` in the full page context. Only drop files you trust completely.
+</Warning>

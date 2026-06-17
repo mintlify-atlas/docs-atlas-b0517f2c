@@ -1,0 +1,87 @@
+---
+title: "GUI Mode: Windows 7-styled desktop environment"
+sidebarTitle: "Overview"
+description: "HagalazOS GUI mode provides a draggable windowed desktop with taskbar, app icons, and blob-iframe sandboxing — styled with 7.css for a Windows 7 aesthetic."
+---
+
+HagalazOS GUI mode is a fully browser-native desktop environment that boots inside a single HTML page. It recreates the feel of a classic windowed OS — draggable windows, a persistent taskbar, and a grid of clickable desktop icons — using nothing but HTML, CSS, and vanilla JavaScript running directly in any modern browser tab.
+
+## How it loads
+
+The entry point is `os.html`. On page load it pulls in three layers of scripts and styles:
+
+<Steps>
+  <Step title="Styles">
+    Two CDN stylesheets are applied first:
+    - **7.css** (`unpkg.com/7.css`) — provides the complete Windows 7 visual theme for window chrome, buttons, and title bars.
+    - **Bootstrap Icons** (`cdn.jsdelivr.net/npm/bootstrap-icons`) — supplies the `bi-*` icon classes used on desktop shortcuts and taskbar buttons.
+
+    Two local stylesheets follow: `style.css` (wallpaper, taskbar, and window-wrapper geometry) and `desktop.css` (icon grid and highlight pseudo-element).
+  </Step>
+  <Step title="Core scripts">
+    `script.js` is the kernel: it owns the grid system, window lifecycle (`openWindow`, `minimizeWindow`, `maximizeWindow`, `closeWindow`), blob-iframe rendering, drag logic, and the Ctrl+X hotkey listener.
+
+    `dragjs.js` is loaded immediately after and enables **drag-and-drop of `.js` files** onto the desktop — dropped scripts are evaluated in-page, allowing sideloaded app registrations at runtime.
+  </Step>
+  <Step title="App scripts">
+    Per-app JS files (e.g. `apps/calculator.js`, `apps/browser.js`) each push one entry onto `window.Apps[]`. The `window.onload` handler in `script.js` iterates that array to render every icon and taskbar button.
+  </Step>
+</Steps>
+
+## DOM regions
+
+The page body contains exactly three top-level regions that cooperate to produce the desktop layout.
+
+| Element | Role |
+|---|---|
+| `#desktop` | Absolutely-positioned container for all desktop icon `div`s |
+| `#windows` | Absolutely-positioned container where `.window-wrapper` divs are appended when apps open |
+| `.taskbar` / `#taskbar` | Fixed 48 px bar pinned to `bottom: 0` holding quick-launch buttons |
+
+<Note>
+  `#desktop` and `#windows` are both `position: absolute; width: 100%; height: 100%` so they overlay each other. Windows are rendered above icons because they receive a higher `z-index` via `zIndexCounter`.
+</Note>
+
+## App registration
+
+Apps declare themselves by pushing a descriptor object onto `window.Apps[]` before `window.onload` fires. The boot loop in `script.js` reads this array, creates an icon div for each entry, and optionally adds a taskbar button.
+
+```js
+window.Apps = window.Apps || [];
+window.Apps.push({
+  id: "my-app",
+  title: "My App",
+  icon: "bi-app",
+  htmlPath: "./apps/myapp.html",
+  taskbar: true
+});
+```
+
+Icons are placed on an **80 px grid**. If no explicit `gridX`/`gridY` is supplied, `findNextFreeCell()` picks the first unoccupied cell automatically. See [Desktop](/gui/desktop) for the full grid reference.
+
+## Keyboard shortcut
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl + X` | Closes the topmost window (highest `z-index` among all `.window-wrapper` elements) |
+
+<Tip>
+  `Ctrl + X` is the only built-in global keyboard shortcut. Individual apps rendered inside blob iframes can define their own shortcuts independently without interference.
+</Tip>
+
+## Explore the subsystems
+
+<CardGroup cols={2}>
+  <Card title="Windows" icon="window" href="/gui/windows">
+    Draggable, minimizable, maximizable windows built around the 7.css title-bar structure and blob-iframe sandboxing.
+  </Card>
+  <Card title="Desktop" icon="layout-wtf" href="/gui/desktop">
+    The 80 px icon grid, `window.Apps[]` descriptor format, and icon rendering rules.
+  </Card>
+  <Card title="Taskbar" icon="layout-bottom-row" href="/gui/taskbar">
+    The fixed 48 px quick-launch bar and how apps opt in with `taskbar: true`.
+  </Card>
+  <Card title="Drag & Drop" icon="cursor-fill" href="/gui/desktop#drag-drop">
+    Drop a `.js` app file directly onto the desktop to sideload it at runtime via `dragjs.js`.
+  </Card>
+</CardGroup>

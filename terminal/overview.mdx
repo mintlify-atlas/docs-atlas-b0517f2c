@@ -1,0 +1,106 @@
+---
+title: "Terminal Mode: command-line interface for HagalazOS"
+sidebarTitle: "Overview"
+description: "HagalazOS Terminal mode is a full browser-based CLI with a Vanta.js animated globe background, libcurl.js network support, and an extensible command set."
+---
+
+HagalazOS Terminal mode is a fully self-contained command-line interface that runs entirely inside the browser. Unlike a native terminal emulator, it does not use a real pseudo-terminal (PTY) or shell process — all command parsing and execution is handled by JavaScript running in the page. It is loaded via `terminal.html` and provides a growing set of built-in commands for networking, system information, and launching other parts of HagalazOS.
+
+## Visual design
+
+The terminal is styled for a classic hacker aesthetic: a pure black (`#000`) page background, white (`#fff`) output text, and an orange (`#FF8000`) prompt string. The entire viewport is filled by a Vanta.js **GLOBE** animation that renders an interactive 3-D wireframe globe in the same orange accent colour behind the terminal panel.
+
+The terminal panel itself (`#terminal`) sits above the Vanta canvas at `z-index: 1` with a semi-transparent black overlay (`rgba(0,0,0,0.55)`) so the animated background remains visible without interfering with readability. All text uses the `Consolas, monospace` font stack.
+
+### Startup screen
+
+When `terminal.html` first loads it displays an ASCII-art logo built from Unicode block characters (`▄`, `▀`) coloured across an orange and amber palette — shades including `#ff8700`, `#ffaf87`, `#ffd75f`, `#ff5f00`, and `#d75f00`. Below the logo, the following greeting is printed:
+
+```
+HagalazOS terminal (beta)
+Type help for commands
+```
+
+## DOM structure
+
+The page is built from four key elements:
+
+| Element | Role |
+|---|---|
+| `#bg` | Fixed, full-viewport `<div>` that Vanta mounts its WebGL canvas into |
+| `#terminal` | Scrollable container (`overflow-y: auto`) that holds all visible terminal content |
+| `#output` | Append-only area where command results are printed as individual `<div>` nodes |
+| `#line` | Flex row containing the `#prompt` span and the `#input` text field |
+
+A hidden `#games` div is also present in the body — it serves as the mount point for the optional Lumin SDK when invoked from within the terminal.
+
+## Runtime dependencies
+
+All four libraries are loaded from CDN at runtime in the order shown below. Loading order matters because Vanta requires Three.js to already be present on the page.
+
+<Steps>
+  <Step title="Three.js r134">
+    ```html
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+    ```
+    Three.js is a WebGL rendering library. Vanta.js uses it as its rendering back-end, so it must be loaded first.
+  </Step>
+  <Step title="Vanta GLOBE">
+    ```html
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.globe.min.js"></script>
+    ```
+    Vanta.js provides the animated globe background. It is initialised immediately after load with the `#bg` element as its target and `0xff8000` as the globe colour.
+  </Step>
+  <Step title="libcurl.js 0.7.1">
+    ```html
+    <script src="https://cdn.jsdelivr.net/npm/libcurl.js@0.7.1/libcurl_full.js"></script>
+    ```
+    libcurl.js is a WebAssembly port of libcurl that enables full HTTP request support from within the browser. It powers the `curl` command.
+  </Step>
+  <Step title="Lumin SDK">
+    ```html
+    <script src="https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js"></script>
+    ```
+    The Lumin SDK is loaded on the terminal page so that the `luminsdk` command can reference `Lumin.init` when constructing the new-tab environment. It is not initialised on the terminal page itself.
+  </Step>
+</Steps>
+
+## libcurl WebSocket proxy
+
+Because browsers cannot make raw TCP/IP connections, libcurl.js routes all HTTP requests through a **Wisp WebSocket proxy**. The proxy endpoint is configured as soon as the WebAssembly module signals that it has finished loading:
+
+```js
+document.addEventListener("libcurl_load", () => {
+    libcurl.set_websocket("wss://wisp.mercurywork.shop/");
+});
+```
+
+The `libcurl_load` event fires once the Wasm binary has been compiled and initialised. Any `curl` command issued before this event fires will fail with an error.
+
+<Note>
+  `wss://wisp.mercurywork.shop/` is a public community Wisp endpoint. It is suitable for development and testing but carries no uptime or privacy guarantees. For any production deployment of HagalazOS you should host your own Wisp server and update the `set_websocket` URL accordingly.
+</Note>
+
+## Input handling
+
+The terminal listens for the `keydown` event on the `#input` field. When the `Enter` key is pressed, it follows these steps in order:
+
+<Steps>
+  <Step title="Read and echo">
+    `input.value` is trimmed to produce the command string `cmd`. The prompt and command are immediately echoed to `#output` in orange (`#FF8000`) so the user can see what was typed, even after the input field clears.
+  </Step>
+  <Step title="Dispatch">
+    The command string is matched against each built-in using strict equality checks (e.g. `cmd === "help"`) or prefix checks (e.g. `cmd.startsWith("curl ")`). The matching handler function is called — or, if nothing matches and `cmd` is non-empty, the error `"command not found: <cmd>"` is printed in red (`#ff5555`).
+  </Step>
+  <Step title="Clear and scroll">
+    `input.value` is set to `""` and `terminal.scrollTop` is set to `999999` to force the viewport to the bottom so the latest output is always visible.
+  </Step>
+</Steps>
+
+All output is written via the `print(text, color)` helper, which appends an escaped `<div>` to `#output`. HTML special characters in `text` are sanitised by `escapeHTML()` before insertion to prevent XSS from fetched remote content.
+
+<Tip>
+  All built-in command handlers are plain JavaScript functions defined in the page's inline `<script>` block. You can extend the terminal by adding new `else if` branches to the `keydown` listener and defining corresponding handler functions.
+</Tip>
+
+For a full list of available commands and their syntax, see the [Command Reference](/terminal/commands).

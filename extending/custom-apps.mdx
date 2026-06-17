@@ -1,0 +1,144 @@
+---
+title: "Register custom apps in HagalazOS"
+sidebarTitle: "Custom Apps"
+description: "Add your own app to HagalazOS by pushing an app descriptor onto the window.Apps array — define an icon, HTML path, and optional taskbar button."
+---
+
+HagalazOS discovers every application through a single shared array, `window.Apps`. On `window.onload`, `script.js` iterates over every entry in that array, places a clickable icon on the desktop grid, and optionally adds a button to the taskbar. Opening an icon fetches the app's HTML file, wraps it in a sandboxed blob `<iframe>`, and presents it inside a draggable, resizable window — no build step or server-side runtime required.
+
+## How the registration system works
+
+When `os.html` loads, `script.js` runs the following sequence:
+
+1. It checks whether `window.Apps` exists. If the array is empty or undefined, the boot function returns early and the desktop stays blank.
+2. For each descriptor in `window.Apps`, it resolves the icon's grid position. If `gridX` and `gridY` are provided, the icon is placed at that exact cell. Otherwise `findNextFreeCell()` scans the grid column-by-column, top-to-bottom, until it finds the first unoccupied `80 × 80 px` cell.
+3. A `.desktop-icon` element is created and positioned absolutely inside `#desktop`. If the icon value contains `"bi-"`, a Bootstrap Icons `<i>` element is rendered; otherwise the string is displayed as plain text.
+4. If `app.taskbar` is `true`, a matching `<button>` is appended to `#taskbar`.
+5. Clicking either the desktop icon or the taskbar button calls `openWindow(id, htmlPath, title, fallbackUrl)`.
+
+### What `openWindow()` does
+
+`openWindow()` first checks whether a `<div id="…">` matching the app's `id` already exists in the DOM:
+
+- **If it does and is hidden** (minimized): it is made visible again and brought to the front.
+- **If it does and is visible**: it is simply raised to the top `z-index`.
+- **If it does not exist**: a new `.window-wrapper` div is created, appended to `#windows`, and made draggable. The app's HTML is then fetched from `htmlPath`. On success the raw HTML text is turned into a `Blob URL` and loaded inside a `<iframe>` — isolating the app from the host page. If the primary fetch fails and `fallbackUrl` is set, that URL is tried next. If both fail, an error message is shown inside the window body.
+
+## App descriptor shape
+
+Every app is described by a plain JavaScript object. Push one onto `window.Apps` before `window.onload` fires (i.e., before or inside a `<script>` that runs synchronously in `os.html`).
+
+```js
+window.Apps = window.Apps || [];
+window.Apps.push({
+  id: "my-notepad",          // string — unique DOM id for the window element
+  title: "Notepad",          // string — displayed in the window title bar
+  icon: "bi-journal-text",   // Bootstrap Icon class (bi-*) or plain label text
+  htmlPath: "./apps/notepad.html",  // path or URL to the app's HTML file
+  fallbackUrl: null,         // optional fallback URL if htmlPath fetch fails
+  gridX: 2,                  // optional: fixed column position (0-indexed)
+  gridY: 0,                  // optional: fixed row position (0-indexed)
+  taskbar: true              // optional: show button in taskbar
+});
+```
+
+### Descriptor fields
+
+<ParamField path="id" type="string" required>
+  A unique identifier for the app. Used as the `id` attribute of the window's `<div>` element. If two apps share the same `id`, calling `openWindow()` for either one will reuse the single existing window element instead of creating a new one.
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  The text shown in the window's title bar and, if `taskbar` is enabled, as the accessible label of the taskbar button.
+</ParamField>
+
+<ParamField path="icon" type="string" required>
+  A [Bootstrap Icons](https://icons.getbootstrap.com/) class name (e.g. `"bi-calculator-fill"`) **or** any arbitrary string. If the value contains `"bi-"`, an `<i class="bi {icon}">` element is rendered at 28 px. Any other string — including plain text or an emoji — is rendered inside a `<span>` directly.
+</ParamField>
+
+<ParamField path="htmlPath" type="string" required>
+  The path or URL to the app's HTML file. This is fetched at window-open time and rendered inside a sandboxed blob `<iframe>`. It should be a **complete, self-contained HTML document** — all assets it needs must either be inlined or fetched from an absolute URL, because relative paths inside the blob iframe won't resolve against the host origin.
+</ParamField>
+
+<ParamField path="fallbackUrl" type="string">
+  An optional secondary URL. If the fetch of `htmlPath` fails (network error or non-2xx status), `openWindow()` tries this URL instead. Pass `null` or omit the field to skip fallback behaviour.
+</ParamField>
+
+<ParamField path="gridX" type="number">
+  The zero-indexed column at which to place the desktop icon. Must be used together with `gridY`. If omitted, `findNextFreeCell()` auto-places the icon in the next available grid cell.
+</ParamField>
+
+<ParamField path="gridY" type="number">
+  The zero-indexed row at which to place the desktop icon. Must be used together with `gridX`. If omitted, auto-placement is used.
+</ParamField>
+
+<ParamField path="taskbar" type="boolean" default="false">
+  When `true`, a button for this app is added to the `#taskbar` element alongside the desktop icon. Clicking it calls `openWindow()` with the same arguments as the desktop icon.
+</ParamField>
+
+<Tip>
+  `icon` can be **any string** — you are not required to use Bootstrap Icons. Plain text labels (`"NP"`, `"My App"`) and emoji (`"📝"`, `"🧮"`) both render correctly because the icon-creation code only switches to a `<i>` element when it detects `"bi-"` in the value. Browse the full Bootstrap Icons catalogue at [icons.getbootstrap.com](https://icons.getbootstrap.com/).
+</Tip>
+
+<Warning>
+  If two app descriptors share the same `id`, only the **first** window element created for that id will ever be used. When the second app's icon is clicked, `openWindow()` finds the existing element, raises it, and returns — the second app's `htmlPath` is never loaded. Always use a unique `id` per app.
+</Warning>
+
+## Registering a custom app step-by-step
+
+<Steps>
+  <Step title="Create your app HTML file">
+    Write a standalone HTML document for your app and save it, for example as `apps/notepad.html`. Because it will be rendered inside a blob `<iframe>`, inline all CSS and JS you need, or reference them via absolute URLs.
+
+    ```html
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Notepad</title>
+      <style>
+        body { margin: 0; font-family: sans-serif; }
+        textarea { width: 100%; height: 100vh; border: none; padding: 8px; box-sizing: border-box; }
+      </style>
+    </head>
+    <body>
+      <textarea placeholder="Start typing…"></textarea>
+    </body>
+    </html>
+    ```
+  </Step>
+
+  <Step title="Create a JS descriptor file">
+    Create `apps/notepad.js`. It should initialise `window.Apps` if necessary and push your descriptor:
+
+    ```js
+    // apps/notepad.js
+    window.Apps = window.Apps || [];
+    window.Apps.push({
+      id: "notepad",
+      title: "Notepad",
+      icon: "bi-journal-text",
+      htmlPath: "./apps/notepad.html",
+      taskbar: true
+    });
+    ```
+  </Step>
+
+  <Step title="Add the script tag to os.html">
+    Open `os.html` and add a `<script>` tag for your new descriptor file **before the closing `</body>` tag**, after `script.js` has already been included:
+
+    ```html
+    <script src="./script.js"></script>
+    <script src="./dragjs.js"></script>
+    <!-- existing app scripts … -->
+    <script src="./apps/notepad.js"></script>  <!-- ← add this line -->
+    </body>
+    ```
+
+    The order matters: `script.js` must load first because it defines `openWindow()` and the boot `window.onload` handler.
+  </Step>
+
+  <Step title="Reload os.html">
+    Open (or refresh) `os.html` in your browser. The Notepad icon will appear on the desktop at the next available grid cell, and — because `taskbar: true` — a button will also appear in the taskbar.
+  </Step>
+</Steps>
