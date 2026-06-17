@@ -1,5 +1,5 @@
 ---
-title: "Window management in HagalazOS GUI"
+title: "HagalazOS window management: lifecycle and controls"
 sidebarTitle: "Windows"
 description: "HagalazOS windows are draggable, minimizable, maximizable, and closable. Each window renders its app in a sandboxed blob iframe with full window controls."
 ---
@@ -88,14 +88,14 @@ Sets `display: none` on the wrapper identified by `id` and records `minimizedWin
 maximizeWindow(btn)
 ```
 
-Reads `btn.closest(".window-wrapper")` to find the target. Toggles between two states tracked by `win.dataset.max`:
+Reads `btn.closest(".window-wrapper")` to find the target. Toggles between two states tracked by `win.dataset.max`. Newly created windows have `dataset.max` unset; the condition checks strictly for `=== "1"`, so the first click always maximizes:
 
-| `dataset.max` | Result |
-|---|---|
-| `"0"` (normal) → `"1"` | `top:0`, `left:0`, `width:100%`, `height:calc(100% - 48px)` — fills the desktop above the taskbar |
-| `"1"` (maximized) → `"0"` | Restores to `800px × 600px` at `top:50px / left:50px` |
+| `dataset.max` value | Action taken | `dataset.max` set to |
+|---|---|---|
+| unset or `"0"` (normal) | `top:0`, `left:0`, `width:100%`, `height:calc(100% - 48px)` — fills the desktop above the taskbar | `"1"` |
+| `"1"` (maximized) | Restores to `width:800px`, `height:600px`, `top:50px`, `left:50px` | `"0"` |
 
-`zIndexCounter` is incremented on every maximize/restore toggle.
+`zIndexCounter` is also incremented on every maximize/restore toggle via `win.style.zIndex = zIndexCounter++`.
 
 ### Close
 
@@ -141,11 +141,12 @@ openWindow()
 
 ## Z-index management
 
-`zIndexCounter` is a module-level integer starting at `1`. It increments in three situations:
+`zIndexCounter` is a module-level integer starting at `1`. It increments in four situations:
 
 1. **`openWindow` — new window created** — the new wrapper receives the current value then the counter increments.
 2. **`openWindow` — existing window restored/focused** — counter increments and is applied to the existing wrapper.
-3. **`mousedown` on any wrapper** — the wrapper that received the click gets a fresh counter value, bringing it visually to the front.
+3. **`mousedown` on any wrapper** — a `mousedown` listener added during window creation calls `win.style.zIndex = zIndexCounter++`, bringing the clicked window visually to the front.
+4. **`maximizeWindow` / restore** — every maximize and restore toggle also calls `win.style.zIndex = zIndexCounter++`, ensuring the affected window rises to the top of the stack.
 
 ## Keyboard shortcut: Ctrl+X
 

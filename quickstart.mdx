@@ -28,8 +28,6 @@ HagalazOS has no build system, no package manager, and no server-side component.
     While `index.html` can be opened directly via `file://`, some browsers block `fetch()` requests on the `file://` protocol, which prevents the bootloader from chainloading `os.html` or `terminal.html`. The safest approach is to spin up a local HTTP server:
 
     ```bash
-    git clone https://github.com/linuxfandudeguy/HagalazOS
-    cd HagalazOS
     python3 -m http.server 8080
     # Then open http://localhost:8080 in your browser
     ```

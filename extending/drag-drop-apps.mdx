@@ -1,5 +1,5 @@
 ---
-title: "Load app plugins by drag-and-drop on the desktop"
+title: "Load and run app plugins via drag-and-drop in HagalazOS"
 sidebarTitle: "Drag & Drop Apps"
 description: "HagalazOS supports dropping .js files directly onto the desktop to execute them — enabling instant app injection without editing os.html."
 ---
@@ -15,7 +15,14 @@ HagalazOS ships a small companion script, `dragjs.js`, that turns the desktop su
 | `dragover` | Calls `e.preventDefault()` to signal to the browser that drops are accepted on this target. |
 | `drop` | Calls `e.preventDefault()`, then iterates over every file in `e.dataTransfer.files`. |
 
-For each dropped file the script checks whether it is a JavaScript file by testing `file.type === 'application/javascript'` **or** `file.name.endsWith('.js')`. Files that fail both checks are silently skipped and a `console.warn` is emitted with the file name. Files that pass are handed to `runJSFile()`.
+For each dropped file the script checks whether it is a JavaScript file by testing `file.type === 'application/javascript'` **or** `file.name.endsWith('.js')`. Files that fail both checks are skipped with a warning — `console.warn` is emitted with the exact message:
+
+```
+Skipped "<filename>": Not a JavaScript file.
+```
+{/* The <filename> above is a placeholder showing where the actual file.name value appears */}
+
+Files that pass the check are handed to `runJSFile()`.
 
 ### Inside `runJSFile()`
 
@@ -40,7 +47,7 @@ function runJSFile(file) {
 - `openWindow()` — it can open a window immediately, without waiting for a desktop icon click.
 - The entire DOM — it can create elements, manipulate the taskbar, read existing windows, etc.
 
-Any runtime error during `eval()` is caught and logged to the console; the rest of the page continues to function normally.
+A successful execution logs `Executed {file.name}` to the console. Any runtime error during `eval()` is caught and logged as `Error running {file.name}: <error>`; the rest of the page continues to function normally.
 
 <Warning>
   Because the dropped file is executed with `eval()` in the full page context, it has the same privileges as any script already running on the page. **Only drop `.js` files from sources you trust.** A malicious script could read cookies, exfiltrate data through `fetch()`, or modify any part of the UI. Treat drag-and-drop execution like running an executable on your own machine.

@@ -1,5 +1,5 @@
 ---
-title: "Deploy HagalazOS as a static site"
+title: "Deploy HagalazOS as a static site or single-file CDN build"
 sidebarTitle: "Deployment"
 description: "HagalazOS is a set of static files that can be deployed on any static hosting platform. Single-file CDN builds require no hosting at all."
 ---
@@ -68,17 +68,22 @@ The entry point for the interactive boot menu is **`index.html`**. It presents a
 
 ### CDN single-file build
 
-Two files in the repository — `ossingle.html` and `singlefile.html` — are self-contained single-file builds. Both files open with a `<base href>` tag that points to a pinned jsDelivr CDN commit:
+Two files in the repository are designed for CDN-based distribution without any sibling files:
+
+- **`ossingle.html`** — the full GUI desktop, self-contained via a `<base href>` CDN tag.
+- **`singlefile.html`** — a CDN-backed boot menu (identical in appearance to `index.html`) that chainloads `ossingle.html` for GUI mode or `terminal.html` for terminal mode.
+
+Both files open with a `<base href>` tag that points to a pinned jsDelivr CDN commit, so every relative asset path (`./script.js`, `./style.css`, `./apps/calculator.html`, etc.) resolves through that commit on the CDN:
 
 ```html
-<!-- ossingle.html -->
+<!-- ossingle.html — full GUI desktop -->
 <base href="https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@91b5b089410c23a79eba935dcdf94ba373b1161b/">
 
-<!-- singlefile.html -->
+<!-- singlefile.html — CDN boot menu, chainloads ossingle.html for GUI -->
 <base href="https://cdn.jsdelivr.net/gh/linuxfandudeguy/HagalazOS@c88a28aaade5c9e7d0b0c84d284afd1589155d22/">
 ```
 
-Because every relative path (`./script.js`, `./style.css`, `./apps/calculator.html`, etc.) resolves through the `<base href>` to a specific CDN commit, **you can host either file entirely on its own** — no sibling files are needed. This makes both files suitable for:
+Because every relative path resolves through the `<base href>` to a specific CDN commit, **you can host either file entirely on its own** — no sibling files are needed. This makes both files suitable for:
 
 - Sharing as a single URL.
 - Embedding in a pastebin, gist, or static page host that accepts raw HTML.
@@ -94,13 +99,13 @@ Replace `<commit>` with any full or short Git commit hash from the repository.
 
 #### Self-updating entry point
 
-`updating.html` is a minimal one-liner that always loads the **latest** version of `singlefile.html` from the `master` branch:
+`updating.html` is a minimal one-liner that always loads the **latest** version of `singlefile.html` (the CDN boot menu) from the `master` branch:
 
 ```html
 <script>(async()=>{document.open();document.write(await (await fetch("https://raw.githubusercontent.com/linuxfandudeguy/HagalazOS/refs/heads/master/singlefile.html")).text());document.close()})()</script>
 ```
 
-When a browser opens `updating.html`, it fetches `singlefile.html` from the live `master` branch on GitHub and replaces the current document with it. This means the OS boots at the latest available version without any caching layer — useful for development, but not recommended for stable deployments where reproducibility matters.
+When a browser opens `updating.html`, it fetches `singlefile.html` from the live `master` branch on GitHub and replaces the current document with it. From there the boot menu loads, and selecting GUI mode chainloads `ossingle.html` via the CDN. This means the OS boots at the latest available version without any caching layer — useful for development, but not recommended for stable deployments where reproducibility matters.
 
 <Tip>
   For zero-maintenance hosting, link directly to a jsDelivr CDN URL pinned to a specific commit. jsDelivr CDN responses for commit-pinned paths are **immutable and globally cached**, so the content will never change and latency is minimal regardless of where your users are located.

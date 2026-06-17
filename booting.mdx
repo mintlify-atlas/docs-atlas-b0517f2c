@@ -57,14 +57,25 @@ When `boot()` runs, it reads `options[index].url`, fetches it with the Fetch API
 ```js
 async function boot() {
     const target = options[index].url;
+
     try {
         const res = await fetch(target);
         const html = await res.text();
+
+        // wipe current document and replace entirely
         document.open();
         document.write(html);
         document.close();
+
     } catch (err) {
-        document.body.innerHTML = `<pre style="color:#ff8000;">LOAD FAILURE\n------------------\nTarget: ${target}\nError: ${err}</pre>`;
+        document.body.innerHTML = `
+            <pre style="color:#ff8000;">
+LOAD FAILURE
+------------------
+Target: ${target}
+Error: ${err}
+            </pre>
+        `;
     }
 }
 ```
@@ -107,15 +118,7 @@ Because of this `<base href>`, the GUI option in `singlefile.html` targets `./os
 `updating.html` is a one-liner self-updater. When opened, it immediately fetches the latest `singlefile.html` from the `master` branch on GitHub and chainloads it, effectively replacing itself with the current HEAD version:
 
 ```html
-<script>(async()=>{
-    document.open();
-    document.write(
-        await (await fetch(
-            "https://raw.githubusercontent.com/linuxfandudeguy/HagalazOS/refs/heads/master/singlefile.html"
-        )).text()
-    );
-    document.close()
-})()</script>
+<script>(async()=>{document.open();document.write(await (await fetch("https://raw.githubusercontent.com/linuxfandudeguy/HagalazOS/refs/heads/master/singlefile.html")).text());document.close()})()</script>
 ```
 
 This gives you a permanent bookmark or hosted URL that always boots the most recent published build of HagalazOS without you needing to update the file yourself.

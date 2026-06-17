@@ -1,5 +1,5 @@
 ---
-title: "Register custom apps in HagalazOS"
+title: "Register and build custom apps for HagalazOS desktop"
 sidebarTitle: "Custom Apps"
 description: "Add your own app to HagalazOS by pushing an app descriptor onto the window.Apps array — define an icon, HTML path, and optional taskbar button."
 ---
@@ -11,8 +11,8 @@ HagalazOS discovers every application through a single shared array, `window.App
 When `os.html` loads, `script.js` runs the following sequence:
 
 1. It checks whether `window.Apps` exists. If the array is empty or undefined, the boot function returns early and the desktop stays blank.
-2. For each descriptor in `window.Apps`, it resolves the icon's grid position. If `gridX` and `gridY` are provided, the icon is placed at that exact cell. Otherwise `findNextFreeCell()` scans the grid column-by-column, top-to-bottom, until it finds the first unoccupied `80 × 80 px` cell.
-3. A `.desktop-icon` element is created and positioned absolutely inside `#desktop`. If the icon value contains `"bi-"`, a Bootstrap Icons `<i>` element is rendered; otherwise the string is displayed as plain text.
+2. For each descriptor in `window.Apps`, it resolves the icon's grid position. If `gridX` and `gridY` are provided as numbers, the icon is placed at that exact cell. Otherwise `findNextFreeCell()` scans the grid column-by-column, top-to-bottom, until it finds the first unoccupied `80 × 80 px` cell.
+3. A `.desktop-icon` element is created and positioned absolutely inside `#desktop`. If `app.icon` is defined and contains `"bi-"`, a Bootstrap Icons `<i>` element is rendered; otherwise the string is displayed as plain text.
 4. If `app.taskbar` is `true`, a matching `<button>` is appended to `#taskbar`.
 5. Clicking either the desktop icon or the taskbar button calls `openWindow(id, htmlPath, title, fallbackUrl)`.
 
@@ -23,6 +23,8 @@ When `os.html` loads, `script.js` runs the following sequence:
 - **If it does and is hidden** (minimized): it is made visible again and brought to the front.
 - **If it does and is visible**: it is simply raised to the top `z-index`.
 - **If it does not exist**: a new `.window-wrapper` div is created, appended to `#windows`, and made draggable. The app's HTML is then fetched from `htmlPath`. On success the raw HTML text is turned into a `Blob URL` and loaded inside a `<iframe>` — isolating the app from the host page. If the primary fetch fails and `fallbackUrl` is set, that URL is tried next. If both fail, an error message is shown inside the window body.
+
+New windows are created at a default size of **800 × 600 px**, positioned **50 px from the top and left** of the viewport.
 
 ## App descriptor shape
 
@@ -53,7 +55,7 @@ window.Apps.push({
 </ParamField>
 
 <ParamField path="icon" type="string" required>
-  A [Bootstrap Icons](https://icons.getbootstrap.com/) class name (e.g. `"bi-calculator-fill"`) **or** any arbitrary string. If the value contains `"bi-"`, an `<i class="bi {icon}">` element is rendered at 28 px. Any other string — including plain text or an emoji — is rendered inside a `<span>` directly.
+  A [Bootstrap Icons](https://icons.getbootstrap.com/) class name (e.g. `"bi-calculator-fill"`) **or** any arbitrary string. The check uses optional chaining — if `icon` is `undefined`, no `<i>` element is rendered. When the value is defined and contains `"bi-"`, an `<i class="bi {icon}">` element is rendered at 28 px. Any other string — including plain text or an emoji — is rendered inside a `<span>` directly.
 </ParamField>
 
 <ParamField path="htmlPath" type="string" required>
@@ -65,11 +67,11 @@ window.Apps.push({
 </ParamField>
 
 <ParamField path="gridX" type="number">
-  The zero-indexed column at which to place the desktop icon. Must be used together with `gridY`. If omitted, `findNextFreeCell()` auto-places the icon in the next available grid cell.
+  The zero-indexed column at which to place the desktop icon. The boot code checks this with a strict `typeof app.gridX === "number"` test — a string value or `undefined` falls back to auto-placement. Must be used together with `gridY`. The grid is 10 columns wide (`GRID_COLS = 10`).
 </ParamField>
 
 <ParamField path="gridY" type="number">
-  The zero-indexed row at which to place the desktop icon. Must be used together with `gridX`. If omitted, auto-placement is used.
+  The zero-indexed row at which to place the desktop icon. Used only when `gridX` is also a number. If omitted, auto-placement via `findNextFreeCell()` is used instead.
 </ParamField>
 
 <ParamField path="taskbar" type="boolean" default="false">

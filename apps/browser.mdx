@@ -1,7 +1,7 @@
 ---
-title: "Browser app: in-OS web browsing with libcurl.js"
+title: "HagalazOS Browser app: web browsing with libcurl.js and Wisp"
 sidebarTitle: "Browser"
-description: "The HagalazOS Browser app opens in a draggable window and provides in-OS web browsing powered by libcurl.js routing requests through a Wisp WebSocket proxy."
+description: "The HagalazOS Browser app runs in a draggable window and routes requests through libcurl.js and a Wisp WebSocket proxy to bypass browser CORS."
 ---
 
 The Browser is one of HagalazOS's flagship built-in applications. It runs inside a draggable, resizable window like every other app — but its key capability is network access that bypasses normal browser CORS restrictions. This is achieved through [libcurl.js](https://github.com/ading2210/libcurl.js), a WebAssembly port of libcurl that routes HTTP traffic through a Wisp WebSocket proxy rather than the browser's standard fetch stack.
@@ -18,13 +18,15 @@ If the primary HTML path fails to load, an optional `fallbackUrl` can be set in 
 
 ## libcurl.js and the Wisp proxy
 
-Standard browser `fetch()` enforces CORS — servers must opt-in by returning the right headers before a cross-origin request succeeds. The Browser app works around this by routing requests through a [Wisp](https://github.com/MercuryWorkshop/wisp-protocol) WebSocket server. The Wisp endpoint used by default is:
+Standard browser `fetch()` enforces CORS — servers must opt-in by returning the right headers before a cross-origin request succeeds. The Browser app works around this by routing requests through a [Wisp](https://github.com/MercuryWorkshop/wisp-protocol) WebSocket server via libcurl.js.
+
+libcurl.js establishes a persistent WebSocket connection to a Wisp endpoint, then tunnels HTTP requests through it. From the perspective of the destination server, the request comes from the Wisp server's IP — not from your browser.
+
+The same public Wisp endpoint used by the terminal's `curl` command is:
 
 ```
 wss://wisp.mercurywork.shop/
 ```
-
-libcurl.js establishes a persistent WebSocket connection to this endpoint, then tunnels HTTP requests through it. From the perspective of the destination server, the request comes from the Wisp server's IP — not from your browser.
 
 <Note>
   The default Wisp endpoint (`wss://wisp.mercurywork.shop/`) is a community-run public service. Uptime is not guaranteed. For reliable deployments, consider self-hosting a Wisp server.
